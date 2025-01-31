@@ -68,6 +68,12 @@ docker ps
 
 Ensure both `ollama-deepseek` and `open-webui` are running.
 
+Check if the model is present:
+
+```sh
+curl http://localhost:11434/api/tags
+```
+
 ### Restart a Container
 
 ```sh
