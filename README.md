@@ -16,7 +16,7 @@ Ensure you have the following installed:
 Run the following command to build the Docker image:
 
 ```sh
-bash setup.sh
+./run.sh
 ```
 
 This script will:
