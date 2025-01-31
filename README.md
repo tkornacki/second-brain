@@ -96,10 +96,14 @@ docker logs open-webui
 
 ### Remove and Rebuild
 
-If you encounter issues, you may need to remove existing containers and rebuild:
+If you encounter issues, you may need to remove existing containers, images, and volumes, then rebuild:
 
 ```sh
-docker rm -f ollama-deepseek open-webui
+docker stop ollama-deepseek open-webui
+docker rm ollama-deepseek open-webui
+docker rmi ollama-deepseek open-webui
+docker volume rm ollama-deepseek-data
+./run.sh
 ```
 
 ## Author
