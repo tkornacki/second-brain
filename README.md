@@ -94,7 +94,6 @@ If you encounter issues, you may need to remove existing containers and rebuild:
 
 ```sh
 docker rm -f ollama-deepseek open-webui
-bash setup.sh
 ```
 
 ## Author
