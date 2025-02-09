@@ -1,0 +1,1 @@
+OLLAMA_URL:str = "http://localhost:11434/api" 

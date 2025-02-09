@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "infrabot"
+name = "broca"
 version = "0.1.0"
 description = ""
 authors = ["tristan <tkornacki@rapidsos.com>"]
 readme = "README.md"
 
 packages = [
-    { include = "second-brain", from = "." },
+    { include = "src", from = "." },
 ]
 
 [tool.poetry.dependencies]
