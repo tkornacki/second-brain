@@ -1,0 +1,10 @@
+serviceAccount:
+  name: readonly-sa
+
+role:
+  name: readonly-role
+
+roleBinding:
+  name: readonly-rolebinding
+
+namespace: default

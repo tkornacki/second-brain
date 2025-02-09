@@ -1,5 +1,7 @@
 from src.ollama.requests import get_running_model, generate_kube_command
 from src.utils.shell_commands import run_cmd
+from src.helm.commands import deploy_service_account
+import sys
 
 def main():
     print("Hello, Broca!")
@@ -7,6 +9,8 @@ def main():
     active_model = get_running_model()
     print(f"Running model: {active_model}")
     
+    deploy_service_account()
+    sys.exit(0)
     request = "Get all pods in the 'mco' namespace"
     response = generate_kube_command(active_model, request)
     
