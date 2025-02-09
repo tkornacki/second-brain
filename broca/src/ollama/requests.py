@@ -12,7 +12,6 @@ He asks of you:
 
 def generate_kube_command(active_model: str, query: str) -> str:
     """Generate a kubectl command based on the query."""
-    print(f"Attempting to generate kubectl command for query: {query}")
     prompt = f"{PROMPT_CONSTRAINTS}\n---\n{query}\n---"
     response = requests.post(
         f"{OLLAMA_URL}/generate",
