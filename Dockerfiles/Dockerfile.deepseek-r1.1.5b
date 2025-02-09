@@ -1,22 +1,17 @@
 # Use an official lightweight base image
 FROM ubuntu:22.04
 
-# Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ollama
 RUN curl -fsSL https://ollama.ai/install.sh | bash
 
-# Expose the default Ollama port
 EXPOSE 11434
 
-# Start Ollama in server mode and pull the model on startup
 CMD OLLAMA_HOST=0.0.0.0 ollama serve & \
     until curl -s http://localhost:11434/api/tags | grep -q 'models'; do sleep 2; done && \
     ollama pull deepseek-r1:1.5b && \
