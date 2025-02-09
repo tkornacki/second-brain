@@ -137,33 +137,41 @@ if ! docker network inspect $NETWORK_NAME >/dev/null 2>&1; then
     docker network create $NETWORK_NAME
 fi
 
+# If 'CONTAINER_PORT' is already in use, stop that container
+if docker ps | grep -q $CONTAINER_PORT; then
+    # If the running container is not the same as the desired container, stop it
+    if ! docker ps | grep -q $CONTAINER_NAME; then
+        RUNNING_CONTAINER=$(docker ps | grep $CONTAINER_PORT | awk '{print $1}')
+        RUNNING_CONTAINER_NAME=$(docker ps | grep $CONTAINER_PORT | awk '{print $2}')
+        echo "Port is alrady in use by $RUNNING_CONTAINER_NAME. Stopping $RUNNING_CONTAINER..."
+        docker stop $RUNNING_CONTAINER
+    fi
+fi
+
 # If the image already exists, skip the build step
 if docker images | grep -q $CONTAINER_NAME; then
     echo "$CONTAINER_NAME image already exists."
 else
     # Build the Docker image, silently, unless there are errors
     echo "Building Docker image: $MODEL_NAME"
-    docker build --build-arg MODEL_NAME="$MODEL_NAME" -t "$CONTAINER_NAME" -f "Dockerfile" .
+    docker build --build-arg MODEL_NAME="$MODEL_NAME" -t "$CONTAINER_NAME:$MODEL_TAG" -f "Dockerfile" .
 fi
 
-# For each model, check if the container is running. If it is, and is not 'MODEL_NAME', stop it
-for model in "${MODELS[@]}"; do
-    if docker ps | grep -q "second-brain-$model" && [[ "$model" != "$MODEL_NAME" ]]; then
-        echo "Stopping second-brain-$model container..."
-        docker stop "second-brain-$model"
-    fi
-done
-
 #TODO: Add ability to delete the container and recreate it. Use an input arg
-if docker ps | grep -q $CONTAINER_NAME; then
-    echo "$CONTAINER_NAME container is already running."
-else
+CONTAINER_INFO=$(docker ps -a | grep $CONTAINER_NAME)
+
+# If the container already exists, start it
+if [[ -n "$CONTAINER_INFO" ]]; then
     echo "Starting $CONTAINER_NAME container..."
-    docker run -d --name $CONTAINER_NAME \
+    docker start $CONTAINER_NAME
+else
+    echo "Creating $CONTAINER_NAME container..."
+    docker run -d \
+        --name $CONTAINER_NAME \
         --network=$NETWORK_NAME \
         -p $CONTAINER_PORT:$CONTAINER_PORT \
         --restart always \
-        $CONTAINER_NAME
+        $CONTAINER_NAME:$MODEL_TAG
 fi
 
 if [[ "$DISABLE_WEB_CHAT" == false ]]; then
@@ -197,15 +205,37 @@ if ! echo "$OLLAMA_HEALTH_CHECK" | grep -q "Ollama is running"; then
     echo "ERROR: Ollama is not running."
     exit 1
 else
-    echo "Ollama is running successfully."
+    echo "Ollama is running successfully. Looking for model $MODEL_NAME:$MODEL_TAG..."
 fi
 
 # Get the list of models from the Ollama service
-MODELS=$(curl -s "$OLLAMA_BASE_URL/api/tags" | jq -r '.models[].name')
-echo "Available models: $MODELS"
-if ! echo "$MODELS" | grep -q "$MODEL_NAME:$MODEL_TAG"; then
-    echo "ERROR: Model $MODEL_NAME not found in Ollama."
+# The larger the number of models, the longer this will take
+# Set a timeout of 30 seconds and check every 2 seconds
+# If the model is not found, print an error message and exit
+
+TIMEOUT_SECONDS=30
+INTERVAL_SECONDS=2
+MODEL_FOUND=false
+
+while [[ $TIMEOUT_SECONDS -gt 0 ]]; do
+    AVAILABLE_MODELS=$(curl -s "$OLLAMA_BASE_URL/api/tags" | jq -r '.models[].name')
+    if echo "$AVAILABLE_MODELS" | grep -q "$MODEL_NAME"; then
+        MODEL_FOUND=true
+        break
+    else
+        sleep $INTERVAL_SECONDS
+        TIMEOUT_SECONDS=$((TIMEOUT_SECONDS - INTERVAL_SECONDS))
+    fi
+done
+
+if [[ "$MODEL_FOUND" == false ]]; then
+    cat <<EOF
+ERROR: Model $MODEL_NAME not found in Ollama.
+Found Models: $AVAILABLE_MODELS
+EOF
     exit 1
+else
+    echo "Model $MODEL_NAME found in Ollama."
 fi
 
 popd >/dev/null

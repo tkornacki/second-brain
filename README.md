@@ -1,62 +1,66 @@
 # Deepseek Ollama Container Setup
 
-This repository houses the setup steps necessary to deploy and run the **Deepseek Ollama** model along with **Open WebUI** for an interactive experience, in a single `bash` script.
+This repository provides setup instructions to deploy and run the **Deepseek Ollama** model with **Open WebUI** using a single `bash` script.
 
 ## Prerequisites
 
-Ensure you have the following installed:
-
 - [Docker](https://docs.docker.com/get-docker/)
-- [NVIDIA GPU Drivers](https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/index.html) (if using GPUs)
+- [NVIDIA GPU Drivers](https://docs.nvidia.com/datacenter/tesla/tesla-installation-notes/index.html) (for GPU acceleration)
 
-## Installation & Setup
+## Quick Start
 
-### 1. Build the Deepseek Ollama Container
-
-Run the following command to build the Docker image:
+Run the following command to set up and start the container:
 
 ```sh
-./run.sh
+./run.sh -m <model>[:tag]
 ```
 
-This script will:
+Supported models:
 
-- Build a Docker image based on Ubuntu 22.04 with Ollama installed.
-- Detect if an NVIDIA GPU is available and use GPU acceleration if applicable.
-- Create a Docker network (`ollama-net`) if it does not exist.
-- Start a container named `ollama-deepseek`.
-- Run Open WebUI for an easy interface to interact with the model.
+- `deepseek-r1`
+- `llama3.1`
 
-### 2. Access the Web Interface
+Optionally specify a model tag using `:` notation, e.g., `deepseek-r1:1.5b`.
 
-Once the containers are up and running, open your browser and go to:
+### WebUI (Optional)
+
+Enable WebUI by omitting `--disable-web-chat`:
+
+```sh
+./run.sh -m <model>
+```
+
+Disable WebUI:
+
+```sh
+./run.sh -m <model> --disable-web-chat
+```
+
+### Access Web Interface
+
+Visit:
 
 ```
 http://localhost:3000
 ```
 
-This will allow you to interact with the Deepseek model using Open WebUI.
+## Container Overview
 
-## Container Details
+### Ollama Container (`second-brain-<model>`)
 
-### Ollama Container (`ollama-deepseek`)
-
-- **Base Image:** `ubuntu:22.04`
-- **Ports Exposed:** `11434`
-- **Runs on Network:** `ollama-net`
-- **Persistent Restart:** `always`
-- **Command Executed:** `ollama serve` with `deepseek-r1:1.5b` model preloaded.
-- **GPU Support:** Automatically detected and enabled if an NVIDIA GPU is available.
+- **Base:** `ubuntu:22.04`
+- **Port:** `11434`
+- **Network:** `second-brain-net`
+- **Restart Policy:** `always`
+- **GPU Support:** Auto-detected
 
 ### Open WebUI Container (`open-webui`)
 
-- **Base Image:** `ghcr.io/open-webui/open-webui:ollama`
-- **Ports Exposed:** `3000 (mapped to 8080 inside the container)`
-- **Environment Variables:**
-  - `OLLAMA_BASE_URL=http://ollama-deepseek:11434`
-- **Runs on Network:** `ollama-net`
-- **Persistent Restart:** `always`
-- **GPU Support:** Enabled if an NVIDIA GPU is detected.
+- **Base:** `ghcr.io/open-webui/open-webui:ollama`
+- **Port:** `3000 (mapped to 8080 inside container)`
+- **Env:** `OLLAMA_BASE_URL=http://localhost:11434`
+- **Network:** `second-brain-net`
+- **GPU Support:** Auto-detected
 
 ## Troubleshooting
 
@@ -66,44 +70,29 @@ This will allow you to interact with the Deepseek model using Open WebUI.
 docker ps
 ```
 
-Ensure both `ollama-deepseek` and `open-webui` are running.
-
-Check if the model is present:
-
-```sh
-curl http://localhost:11434/api/tags
-```
+Ensure `second-brain-<model>` and `open-webui` (if enabled) are running.
 
 ### Restart a Container
 
 ```sh
-docker restart ollama-deepseek
-```
-
-```sh
-docker restart open-webui
+docker restart second-brain-<model> open-webui
 ```
 
 ### View Logs
 
 ```sh
-docker logs ollama-deepseek
-```
-
-```sh
+docker logs second-brain-<model>
 docker logs open-webui
 ```
 
 ### Remove and Rebuild
 
-If you encounter issues, you may need to remove existing containers, images, and volumes, then rebuild:
-
 ```sh
-docker stop ollama-deepseek open-webui
-docker rm ollama-deepseek open-webui
-docker rmi ollama-deepseek open-webui
-docker volume rm ollama-deepseek-data
-./run.sh
+docker stop second-brain-<model> open-webui
+docker rm second-brain-<model> open-webui
+docker rmi second-brain-<model> open-webui
+docker volume rm ollama open-webui
+./run.sh -m <model>
 ```
 
 ## Author
