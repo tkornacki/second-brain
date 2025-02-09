@@ -5,12 +5,14 @@ set +x
 # Set the current working directory to the directory of the script
 pushd "$(dirname "$0")" >/dev/null || exit
 
-# The Dockerfiles folder contains the possible models.
-# Read the dirs, and split the names on 'Dockerfile'
-# to get the model names.
-MODELS=($(ls -1 Dockerfiles | sed 's/Dockerfile\.//'))
+declare -A MODELS
+MODELS=(
+    ["deepseek-r1"]="1.5b"
+    ["llama3.1"]="8b"
+)
 
-MODEL=""
+MODEL_NAME=""
+MODEL_TAG="latest"
 DISABLE_WEB_CHAT=true
 NETWORK_NAME="second-brain-net"
 CONTAINER_PORT=11434
@@ -33,11 +35,14 @@ while [[ "$#" -gt 0 ]]; do
     case "$1" in
     -m | --model)
         if [[ -n "$2" && ! "$2" =~ ^- ]]; then
-            [[ " ${MODELS[@]} " =~ " $2 " ]] || {
-                echo "Error: Invalid model name: $2"
-                print_help
-            }
-            MODEL="$2"
+            INPUT_MODEL="$2"
+            # If it contains a colon, split the input into model name and tag
+            if [[ "$INPUT_MODEL" == *":"* ]]; then
+                MODEL_NAME=$(echo "$INPUT_MODEL" | cut -d: -f1)
+                MODEL_TAG=$(echo "$INPUT_MODEL" | cut -d: -f2)
+            else
+                MODEL_NAME="$INPUT_MODEL"
+            fi
             shift
         else
             echo "Error: --model requires a value."
@@ -59,7 +64,13 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Required arguments
-[[ -z "$MODEL" ]] && echo "Missing required argument: --model" && print_help
+[[ -z "$MODEL_NAME" ]] && echo "Missing required argument: --model" && print_help
+
+MODEL_TAG=$(echo "${MODELS[$MODEL_NAME]}")
+if [[ -z "$MODEL_TAG" ]]; then
+    echo "Error: Invalid model name: $MODEL_NAME"
+    print_help
+fi
 
 cat <<EOF
 
@@ -67,18 +78,16 @@ cat <<EOF
 Input Parameters
 ##################################################
 
-Model: ${MODEL}
+Model: ${MODEL_NAME}
+Model Tag: ${MODEL_TAG}
 Web Chat Enabled: ${DISABLE_WEB_CHAT}
 
 EOF
-
-popd >/dev/null || exit
 
 OS=$(uname)
 OS_VERSION=$(uname -r)
 OS_ARCH=$(uname -m)
 PROCESSOR=$(uname -p)
-MEMORY=
 cat <<EOF
 
 ##################################################
@@ -101,8 +110,7 @@ else
     echo "No NVIDIA GPU detected, running on CPU."
 fi
 
-# Replace any periods in the model name with hyphens
-CONTAINER_NAME="second-brain-$MODEL"
+CONTAINER_NAME="second-brain-$MODEL_NAME"
 OLLAMA_BASE_URL="http://localhost:$CONTAINER_PORT"
 
 cat <<EOF
@@ -111,8 +119,10 @@ cat <<EOF
 Container Setup
 ##################################################
 Container Name:     ${CONTAINER_NAME}
+Tag:                ${MODEL_TAG}
 Container Port:     ${CONTAINER_PORT}
 Ollama Base URL:    ${OLLAMA_BASE_URL}
+
 EOF
 
 # Confirm Docker is running
@@ -132,11 +142,17 @@ if docker images | grep -q $CONTAINER_NAME; then
     echo "$CONTAINER_NAME image already exists."
 else
     # Build the Docker image, silently, unless there are errors
-    pushd Dockerfiles >/dev/null || exit
-    echo "Building Docker image: $MODEL"
-    docker build -t $CONTAINER_NAME -f Dockerfile.$MODEL . 2>/dev/null
-    popd >/dev/null || exit
+    echo "Building Docker image: $MODEL_NAME"
+    docker build --build-arg MODEL_NAME="$MODEL_NAME" -t "$CONTAINER_NAME" -f "Dockerfile" .
 fi
+
+# For each model, check if the container is running. If it is, and is not 'MODEL_NAME', stop it
+for model in "${MODELS[@]}"; do
+    if docker ps | grep -q "second-brain-$model" && [[ "$model" != "$MODEL_NAME" ]]; then
+        echo "Stopping second-brain-$model container..."
+        docker stop "second-brain-$model"
+    fi
+done
 
 #TODO: Add ability to delete the container and recreate it. Use an input arg
 if docker ps | grep -q $CONTAINER_NAME; then
@@ -186,7 +202,10 @@ fi
 
 # Get the list of models from the Ollama service
 MODELS=$(curl -s "$OLLAMA_BASE_URL/api/tags" | jq -r '.models[].name')
-if ! echo "$MODELS" | grep -q "$MODEL"; then
-    echo "ERROR: Model $MODEL not found in Ollama."
+echo "Available models: $MODELS"
+if ! echo "$MODELS" | grep -q "$MODEL_NAME:$MODEL_TAG"; then
+    echo "ERROR: Model $MODEL_NAME not found in Ollama."
     exit 1
 fi
+
+popd >/dev/null
