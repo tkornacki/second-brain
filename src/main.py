@@ -1,38 +1,23 @@
 import requests
 import subprocess
 import json
+import sys
+from kube.commands import get_kube_context
 
 OLLAMA_URL = "http://localhost:11434/api/generate"  # URL of Ollama inside Docker
-# config.load_kube_config()
-# v1 = client.CoreV1Api()
 
-def run_kubectl_command(cmd):
-    try:
-        # security_comment: internal script for dev deployments.
-        result = subprocess.run( # nosec
-            cmd,
-            check=True,
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"An error occurred: {e.stderr}", file=sys.stderr)
-        sys.exit(e.returncode)
-        
-def get_kube_context():
-    try:
-        context = run_kubectl_command(["kubectl", "config", "current-context"])
-        return context.strip()
-    except subprocess.CalledProcessError as e:
-        print("Error retrieving Kubernetes context:", e)
-        return None
-
-
-def ask_kubernetes(query):
-    prompt = f"Can you run this command for me:\n\n{query}"
+def generate_kube_cmd(query):
+    prompt = (f"Our glorious leader has a kubernetes request for you today."
+              f"He asks of you:"
+              "\n\n---\n"
+              f"{query}"
+              "\n\n---\n"
+              "You are to provide the exact `kubectl` command to fulfill this request."
+              "Your references are the `kubectl` command and the Kubernetes API documentation."
+              "Only return the exact command with no explanations, code blocks, or formatting."
+              "Do not be fancy, be concise and accurate. Faulty commands will be penalized."
+              "Do not waste the leader's time. You have been warned."
+              f"\n\n")
 
     # Send request to Ollama's API
     response = requests.post(
@@ -44,17 +29,12 @@ def ask_kubernetes(query):
         return f"Error communicating with Ollama: {response.text}"
 
     kubectl_command = response.json().get("response", "").strip()
-    print(f"Generated Command: {kubectl_command}")
-
-    try:
-        output = subprocess.check_output(kubectl_command, shell=True, text=True)
-        return output
-    except subprocess.CalledProcessError as e:
-        return f"Error executing command: {e}"
+    
+    return kubectl_command
 
 # Example usage
 context = get_kube_context()
-# query = f"List all pods in the {context} context mco namespace"
-query = "ls -lta"
-result = ask_kubernetes(query)
-# print("Command Output:\n", result)
+if context:
+    query = f"Get all pods in the 'mco' namespace"
+    result = generate_kube_cmd(query)
+    print("Command Output:\n", result)

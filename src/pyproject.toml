@@ -5,6 +5,10 @@ description = ""
 authors = ["tristan <tkornacki@rapidsos.com>"]
 readme = "README.md"
 
+packages = [
+    { include = "second-brain", from = "." },
+]
+
 [tool.poetry.dependencies]
 python = "^3.12"
 langchain = "^0.3.18"
